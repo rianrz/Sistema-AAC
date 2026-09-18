@@ -1,35 +1,35 @@
 # Sistema AAC - Gerador de Pranchas de Comunicação Alternativa
 
-O **Sistema AAC** é uma solução em Java desenvolvida para a geração automática de pranchas de Comunicação Aumentativa e Alternativa (CAA/AAC). O sistema utiliza o modelo de linguagem `aac-board-generator-770m-ptbr-GGUF` através da biblioteca `ollama4j`, permitindo inferência local para a criação de pictogramas e vocabulário contextualizado[cite: 7, 9].
+O **Sistema AAC** é uma solução desenvolvida em Java para a geração automática de pranchas de Comunicação Aumentativa e Alternativa (CAA/AAC). O sistema utiliza o modelo de linguagem leve e quantizado `aac-board-generator-770m-ptbr-GGUF` através da biblioteca `ollama4j`, permitindo inferência local para apoiar a criação rápida de pictogramas e vocabulário contextualizado.
 
 ---
 
 ## 📋 Requisitos do Sistema
 
 ### Requisitos Funcionais (RF)
-* **RF01 - Geração de Pranchas Contextuais:** Receber um pedido do utilizador (ex: "quero ir ao parque") e gerar uma prancha contendo ~12 itens relevantes[cite: 7].
-* **RF02 - Categorização de Itens:** Formatar cada item no padrão `palavra|tipo` (onde tipo representa a classe gramatical/semântica)[cite: 7].
-* **RF03 - Interface de Entrada:** Permitir a inserção de novos contextos/pedidos através do console Java (fase atual)[cite: 7].
+* **RF01 - Geração de Pranchas Contextuais:** O sistema deve receber um pedido do utilizador (ex: "quero ir ao parque") e gerar uma prancha contendo ~12 itens concretos e relevantes para o contexto.
+* **RF02 - Categorização de Itens:** Cada item gerado deve conter a palavra e a sua respetiva classificação semântica/gramatical no formato `palavra|tipo` (onde tipo representa: verbo, substantivo, adjetivo, etc.).
+* **RF03 - Interface de Entrada via Consola:** O sistema deve permitir a introdução de novos contextos/pedidos através do terminal.
 
 ### Requisitos Não-Funcionais (RNF)
-* **RNF01 - Execução Local e Privacidade:** Processar a inferência 100% localmente via servidor Ollama (porta `11434`), sem dependência de APIs externas na nuvem[cite: 7].
-* **RNF02 - Baixa Latência:** Utilizar um modelo leve de 770M de parâmetros quantizado em `Q4_K_M` para baixo consumo de memória e resposta rápida[cite: 7].
-* **RNF03 - Determinismo:** Configurar a temperatura do modelo em `0.0` para garantir respostas consistentes e evitar alucinações de formato[cite: 7].
-* **RNF04 - Integração Tipada:** Utilizar a biblioteca `ollama4j` v1.0.81 para a comunicação com a API REST do Ollama[cite: 7, 9].
+* **RNF01 - Execução Local e Privacidade:** A inferência do modelo deve ocorrer 100% localmente via servidor Ollama, garantindo o funcionamento offline e o respeito pela privacidade dos dados.
+* **RNF02 - Baixa Latência e Eficiência Computacional:** Utilização de um modelo pequeno (770M de parâmetros) quantizado em `Q4_K_M` para permitir a execução em máquinas com recursos limitados de CPU/RAM.
+* **RNF03 - Resposta Determinística:** A temperatura de inferência deve ser mantida em `0.0` para evitar alucinações e padronizar o formato das saídas.
+* **RNF04 - Integração Tipada em Java:** Comunicação com o servidor de IA intermediada pela biblioteca `ollama4j`.
 
 ---
 
 ## ⚖️ Tradeoffs e Decisões de Arquitetura
 
-* **Modelo SLM (770M) vs. Modelo Genérico (7B+):**
-  * **Escolha:** Modelo especializado de 770M de parâmetros[cite: 7].
-  * **Tradeoff:** Menor capacidade conversacional genérica em troca de altíssima velocidade, menor consumo de RAM e foco estrito na geração de vocabulário AAC[cite: 7].
-* **Execução Local vs. API Cloud:**
-  * **Escolha:** Execução local via Ollama[cite: 7].
-  * **Tradeoff:** Exige a instalação do ambiente Ollama na máquina do utilizador, mas elimina custos por token e garante total privacidade dos dados[cite: 7].
+* **Modelo Especializado (770M) vs. Modelo Genérico Grande (7B+):**
+  * *Escolha:* Modelo SLM de 770M.
+  * *Tradeoff:* Menor capacidade de conversação genérica em troca de altíssima velocidade de geração local, menor consumo de memória e foco estrito na estruturação de dados de CAA.
+* **Execução via Ollama Local vs. API em Nuvem:**
+  * *Escolha:* Servidor local na porta `11434`.
+  * *Tradeoff:* Exige a instalação do ambiente Ollama na máquina do utilizador, mas elimina custos por token e garante total privacidade dos dados.
 * **Prompting Estruturado:**
-  * **Escolha:** Utilização explícita de tags `<start_of_turn>` e `<end_of_turn>` no prompt[cite: 7].
-  * **Tradeoff:** Requer formatação rigorosa da string de envio, mas garante o retorno exclusivo da lista no formato `palavra|tipo` sem textos explicativos adicionais[cite: 7].
+  * *Escolha:* Utilização explícita de tags `<start_of_turn>` e `<end_of_turn>` no prompt.
+  * *Tradeoff:* Requer formatação rigorosa da string de envio, mas garante o retorno exclusivo da lista no formato `palavra|tipo` sem textos explicativos adicionais.
 
 ---
 
@@ -37,11 +37,11 @@ O **Sistema AAC** é uma solução em Java desenvolvida para a geração automá
 
 * **Linguagem:** Java 25 (compatível com JDK 21+)
 * **Gestor de Build:** Apache Maven
-* **Integração LLM:** `ollama4j` (`v1.0.81`)[cite: 9]
-* **Modelo IA:** `tardellirs/aac-board-generator-770m-ptbr-GGUF:Q4_K_M`[cite: 7]
-* **Logging:** `logback-classic` (`v1.4.1`)[cite: 9]
-* **Produtividade:** Project Lombok (`v1.18.30`)[cite: 9]
-* **Runtime de IA:** Ollama[cite: 7]
+* **Integração LLM:** `ollama4j` (v1.0.81)
+* **Modelo IA:** `tardellirs/aac-board-generator-770m-ptbr-GGUF:Q4_K_M`
+* **Logging:** `logback-classic` (v1.4.1)
+* **Produtividade:** Project Lombok (v1.18.30)
+* **Runtime de IA:** Ollama
 
 ---
 
