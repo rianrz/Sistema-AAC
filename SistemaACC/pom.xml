@@ -29,6 +29,12 @@
                 <scope>provided</scope>
             </dependency>
 
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama</artifactId>
+            <version>1.20.0</version>
+        </dependency>
+
     </dependencies>
     <properties>
         <maven.compiler.source>25</maven.compiler.source>
