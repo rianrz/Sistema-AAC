@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Scanner;
-import java.util.concurrent.CountDownLatch;
 
 public class AACBoard {
 
@@ -28,7 +27,7 @@ public class AACBoard {
             return;
         }
 
-        // 1. PROMPT MELHORADO: Dando exemplos explícitos para forçar o padrão
+        // 1. PROMPT: Especialista em Comunicação Aumentativa e Alternativa (CAA)
         String instr = "Você é um especialista em Comunicação Alternativa (CAA). " +
                 "Regra OBRIGATÓRIA: Não use números (1., 2.) nem marcadores (-). " +
                 "Responda APENAS com a palavra e o tipo separados por um pipe (|). " +
@@ -38,8 +37,9 @@ public class AACBoard {
                 "feliz|a|\n\n" +
                 "Gere 12 itens concretos e relevantes para o PEDIDO abaixo. Apenas a lista, sem introdução.";
 
-        try (ComfyUIClient comfyClient = new ComfyUIClient();
-             Scanner scanner = new Scanner(System.in)) {
+        PictogramService pictogramService = new PictogramService();
+
+        try (Scanner scanner = new Scanner(System.in)) {
 
             System.out.print("Digite o tema/pedido para a prancha: ");
             String pedido = scanner.nextLine();
@@ -63,79 +63,37 @@ public class AACBoard {
             System.out.println("\n✅ Lista gerada pelo Ollama:");
             System.out.println(resposta);
 
-            System.out.println("\n--- Iniciando Geração de Imagens via ComfyUI ---");
+            System.out.println("\n--- Iniciando Geração Rápida de Pictogramas (Padrão CAA / ARASAAC) ---");
             String[] linhas = resposta.split("\n");
 
+            int geradas = 0;
             for (String linha : linhas) {
-                // Ignora linhas vazias ou textos de introdução da IA ("Aqui está a lista:")
+                // Ignora linhas vazias ou textos de introdução da IA
                 if (linha.trim().isEmpty() || linha.toLowerCase().contains("aqui está") || linha.toLowerCase().contains("claro")) {
                     continue;
                 }
 
-                // 2. FILTRO INTELIGENTE: Remove números, pontos e traços do início da frase
-                // Exemplo: "1. água|s|" ou "- água" vira apenas "água|s|" ou "água"
+                // Filtro inteligente: Remove números, pontos e traços do início
                 String linhaLimpa = linha.replaceAll("^[0-9]+[.-]?\\s*", "").replaceFirst("^-\\s*", "").trim();
                 String palavra = linhaLimpa;
-                // Se a IA obedeceu e usou o pipe, cortamos tudo que vem depois dele
                 if (linhaLimpa.contains("|")) {
                     palavra = linhaLimpa.split("\\|")[0].trim();
                 }
 
                 if (!palavra.isEmpty()) {
-                    gerarImagemComfy(comfyClient, palavra);
+                    Path salvo = pictogramService.salvarPictograma(palavra, Path.of(PASTA_SAIDA));
+                    if (salvo != null) {
+                        geradas++;
+                    }
                 }
             }
 
-            System.out.println("\n🎉 Processo concluído! Verifique a pasta: " + Path.of(PASTA_SAIDA).toAbsolutePath());
+            System.out.println("\n🎉 Processo concluído com sucesso!");
+            System.out.println("📊 Total de imagens obtidas: " + geradas);
+            System.out.println("📁 Verifique a pasta: " + Path.of(PASTA_SAIDA).toAbsolutePath());
 
         } catch (Exception e) {
             System.err.println("Falha na execução: " + e.getMessage());
-        }
-    }
-
-    private static void gerarImagemComfy(ComfyUIClient client, String palavra) {
-        System.out.println("\nGerando pictograma para: " + palavra);
-        String nomeArquivo = palavra.replaceAll("[^a-zA-Z0-9_-]", "_") + ".png";
-        Path caminhoCompleto = Path.of(PASTA_SAIDA, nomeArquivo);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        String promptPositivo = "simple pictogram, white background, single object, " + palavra;
-        String promptNegativo = "low quality, bad anatomy, worst quality, text, watermark";
-
-        client.startGenerate(promptPositivo, promptNegativo, new ComfyUIClient.GenerationHandler() {
-            @Override
-            public void onStart() {
-                System.out.println("Renderização iniciada no ComfyUI...");
-            }
-
-            @Override
-            public void onProgress(int value, int max) {
-                System.out.println("Progresso: " + value + "/" + max + " passos");
-            }
-
-            @Override
-            public void onError(IOException ex) {
-                System.err.println("Erro durante a geração da imagem: " + ex.getMessage());
-                latch.countDown();
-            }
-
-            @Override
-            public void onFinish(byte[] imageData) {
-                try {
-                    Files.write(caminhoCompleto, imageData);
-                    System.out.println("✅ Salvo com sucesso em: " + caminhoCompleto);
-                } catch (IOException e) {
-                    System.err.println("Erro ao salvar imagem no disco: " + e.getMessage());
-                } finally {
-                    latch.countDown();
-                }
-            }
-        });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 }
