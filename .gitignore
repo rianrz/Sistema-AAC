@@ -1,0 +1,5 @@
+# Pastas de geração e cache
+pranchas_geradas/
+SistemaAAC_Interface/pranchas_geradas/
+.idea/
+*.iml
