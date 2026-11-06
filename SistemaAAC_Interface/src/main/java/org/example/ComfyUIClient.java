@@ -26,7 +26,7 @@ public class ComfyUIClient implements AutoCloseable {
 
     private static final String SERVER_ADDRESS = "localhost:8188";
     private static final String CLIENT_ID = "my_client_id";
-    private static final String WORKFLOW = "qwen_image_gguf.json";
+    private static final String DEFAULT_WORKFLOW = "toonyou_sd15_fast.json";
 
     private final ObjectNode promptData;
     private WebSocket ws;
@@ -52,12 +52,25 @@ public class ComfyUIClient implements AutoCloseable {
     }
 
     public ComfyUIClient() throws IOException {
-        this(null);
+        this(DEFAULT_WORKFLOW, null);
     }
+
+    public ComfyUIClient(String workflowPath) throws IOException {
+        this(workflowPath, null);
+    }
+
     public ComfyUIClient(ComfyHandler handler) throws IOException {
+        this(DEFAULT_WORKFLOW, handler);
+    }
+
+    public ComfyUIClient(String workflowPath, ComfyHandler handler) throws IOException {
         this.comfyHandler = handler;
         client = HttpClient.newHttpClient();
-        promptData = loadPromptJson(WORKFLOW);
+        String targetWorkflow = workflowPath != null ? workflowPath : DEFAULT_WORKFLOW;
+        if (!Files.exists(Path.of(targetWorkflow))) {
+            targetWorkflow = "qwen_image_gguf.json";
+        }
+        promptData = loadPromptJson(targetWorkflow);
         startWebSocket();
     }
     public void startGenerate(String positivePrompt, String negativePrompt, GenerationHandler handler) throws UncheckedIOException {
