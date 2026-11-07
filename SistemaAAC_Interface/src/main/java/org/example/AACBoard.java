@@ -37,7 +37,14 @@ public class AACBoard {
                 "feliz|a|\n\n" +
                 "Gere 12 itens concretos e relevantes para o PEDIDO abaixo. Apenas a lista, sem introdução.";
 
-        PictogramService pictogramService = new PictogramService();
+        PictogramService pictogramService;
+        try {
+            pictogramService = new PictogramService();
+        } catch (IOException e) {
+            System.err.println("❌ Não foi possível conectar ao ComfyUI. Certifique-se que está rodando em localhost:8188.");
+            System.err.println("   Erro: " + e.getMessage());
+            return;
+        }
 
         try (Scanner scanner = new Scanner(System.in)) {
 

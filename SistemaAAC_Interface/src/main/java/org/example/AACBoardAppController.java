@@ -14,6 +14,7 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -35,7 +36,6 @@ public class AACBoardAppController {
     private FlowPane containerCards;
 
     private final OllamaService ollamaService = new OllamaService();
-    private final PictogramService pictogramService = new PictogramService();
     private static final Path PASTA_SAIDA = Path.of("pranchas_geradas");
 
     @FXML
@@ -61,22 +61,37 @@ public class AACBoardAppController {
                     return null;
                 }
 
-                Platform.runLater(() -> rotuloStatus.setText("📥 " + palavras.size() + " itens recebidos. Obtendo pictogramas rápidos..."));
+                Platform.runLater(() -> rotuloStatus.setText("📥 " + palavras.size() + " itens recebidos. Gerando pictogramas via ComfyUI (pode levar ~3-5 min por imagem no CPU)..."));
 
-                // 2. Para cada palavra, obter o pictograma de forma rápida
-                int index = 1;
-                for (String palavra : palavras) {
-                    final int num = index++;
-                    Platform.runLater(() -> rotuloStatus.setText(String.format("🎨 Obtendo pictograma (%d/%d): %s...", num, palavras.size(), palavra)));
+                // 2. Criar PictogramService (conecta ao ComfyUI)
+                PictogramService pictogramService;
+                try {
+                    pictogramService = new PictogramService();
+                } catch (IOException e) {
+                    Platform.runLater(() -> rotuloStatus.setText("❌ Não foi possível conectar ao ComfyUI. Certifique-se que está rodando em localhost:8188."));
+                    return null;
+                }
 
-                    byte[] imgBytes = pictogramService.obterImagemPictograma(palavra);
-                    // Também salva em disco para persistência
-                    pictogramService.salvarPictograma(palavra, PASTA_SAIDA);
+                try {
+                    // 3. Para cada palavra, gerar o pictograma via ComfyUI local
+                    int index = 1;
+                    for (String palavra : palavras) {
+                        final int num = index++;
+                        Platform.runLater(() -> rotuloStatus.setText(String.format("🎨 Gerando pictograma via ComfyUI (%d/%d): %s... (aguarde ~3-5 min)", num, palavras.size(), palavra)));
 
-                    Platform.runLater(() -> {
-                        VBox card = criarCardPictograma(palavra, imgBytes);
-                        containerCards.getChildren().add(card);
-                    });
+                        byte[] imgBytes = pictogramService.obterImagemPictograma(palavra);
+                        // Também salva em disco para persistência
+                        if (imgBytes != null && imgBytes.length > 0) {
+                            pictogramService.salvarPictograma(palavra, PASTA_SAIDA);
+                        }
+
+                        Platform.runLater(() -> {
+                            VBox card = criarCardPictograma(palavra, imgBytes);
+                            containerCards.getChildren().add(card);
+                        });
+                    }
+                } finally {
+                    pictogramService.close();
                 }
 
                 Platform.runLater(() -> rotuloStatus.setText("🎉 Prancha pronta! Todos os pictogramas foram gerados com sucesso."));

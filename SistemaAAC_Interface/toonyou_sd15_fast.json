@@ -2,9 +2,9 @@
   "3": {
     "inputs": {
       "seed": 42,
-      "steps": 8,
-      "cfg": 5.0,
-      "sampler_name": "euler",
+      "steps": 15,
+      "cfg": 7.5,
+      "sampler_name": "euler_ancestral",
       "scheduler": "normal",
       "denoise": 1,
       "model": [
@@ -40,13 +40,13 @@
   },
   "5": {
     "inputs": {
-      "width": 384,
-      "height": 384,
+      "width": 512,
+      "height": 512,
       "batch_size": 1
     },
     "class_type": "EmptyLatentImage",
     "_meta": {
-      "title": "Empty Latent Image (Leve)"
+      "title": "Empty Latent Image"
     }
   },
   "6": {
@@ -64,7 +64,7 @@
   },
   "7": {
     "inputs": {
-      "text": "low quality, bad anatomy, text, watermark, blurry",
+      "text": "low quality, bad anatomy, text, watermark, blurry, realistic, photo, complex background",
       "clip": [
         "4",
         1

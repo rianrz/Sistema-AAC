@@ -20,7 +20,7 @@ public class OllamaService {
     }
 
     public List<String> gerarPalavras(String pedido) throws Exception {
-        String instr = "Você monta pranchas de CAA (pictogramas, pt-BR). Para o PEDIDO, liste ~12 itens concretos e relevantes, um por linha, no formato palavra|tipo| (tipo: v/s/a/e/l/p). Só a lista.";
+        String instr = "Você monta pranchas de CAA (pictogramas, pt-BR). Para o PEDIDO, liste EXATAMENTE 6 itens concretos e relevantes, um por linha, no formato palavra|tipo| (tipo: v/s/a/e/l/p). Só a lista, sem introdução, sem números, sem asteriscos.";
 
         // CORREÇÃO: Removido o Text Block compatível apenas com Java 15+
         String prompt = String.format("<start_of_turn>user\n" +
@@ -30,7 +30,7 @@ public class OllamaService {
 
         Options options = new OptionsBuilder()
                 .setTemperature(0.0f)
-                .setNumPredict(320)
+                .setNumPredict(160)
                 .build();
 
         OllamaResult result = ollamaAPI.generate(MODEL, prompt, false, options);
@@ -40,9 +40,12 @@ public class OllamaService {
         String[] linhas = resposta.split("\n");
         for (String linha : linhas) {
             if (linha.contains("|")) {
-                String palavra = linha.split("\\|")[0].trim();
+                String palavra = linha.split("\\|")[0]
+                        .replaceAll("^[^\\p{L}]+", "")  // strip *, •, números, traços do início
+                        .trim();
                 if (!palavra.isEmpty()) {
                     palavras.add(palavra);
+                    if (palavras.size() >= 6) break;  // limite rígido de 6
                 }
             }
         }
