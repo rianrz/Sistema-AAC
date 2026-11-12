@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 
 public class ComfyUIClient implements AutoCloseable {
 
-    private static final String SERVER_ADDRESS = "localhost:8188";
+    private static final String SERVER_ADDRESS = "127.0.0.1:8188";
     private static final String CLIENT_ID = "my_client_id";
     private static final String DEFAULT_WORKFLOW = "toonyou_sd15_fast.json";
 
@@ -67,10 +67,8 @@ public class ComfyUIClient implements AutoCloseable {
         this.comfyHandler = handler;
         client = HttpClient.newHttpClient();
         String targetWorkflow = workflowPath != null ? workflowPath : DEFAULT_WORKFLOW;
-        if (!Files.exists(Path.of(targetWorkflow))) {
-            targetWorkflow = "qwen_image_gguf.json";
-        }
         promptData = loadPromptJson(targetWorkflow);
+        System.out.println("🎨 Workflow ativo: " + targetWorkflow + " (Modelo Anime SD 1.5 - ToonYou)");
         startWebSocket();
     }
     public void startGenerate(String positivePrompt, String negativePrompt, GenerationHandler handler) throws UncheckedIOException {
@@ -91,8 +89,9 @@ public class ComfyUIClient implements AutoCloseable {
     public void close() {
         if (ws != null) ws.sendClose(WebSocket.NORMAL_CLOSURE, "bye");
     }
-    private void startWebSocket() {
+    private void startWebSocket() throws IOException {
         CountDownLatch wsConnected = new CountDownLatch(1);
+        final boolean[] connectionFailed = {false};
 
         client.newWebSocketBuilder()
                 .buildAsync(URI.create("ws://" + SERVER_ADDRESS + "/ws?clientId=" + CLIENT_ID),
@@ -102,22 +101,47 @@ public class ComfyUIClient implements AutoCloseable {
                     wsConnected.countDown();
                 })
                 .exceptionally(ex -> {
-                    System.err.println("❌ Falha ao conectar no WebSocket do ComfyUI: " + ex.getMessage());
+                    System.err.println("❌ Falha ao conectar no ComfyUI: " + ex.getMessage());
+                    connectionFailed[0] = true;
                     wsConnected.countDown();
                     return null;
                 });
 
         try {
-            if (!wsConnected.await(5, TimeUnit.SECONDS)) {
-                System.err.println("⚠️ Conexão com ComfyUI expirou (timeout). O servidor está rodando em localhost:8188?");
+            if (!wsConnected.await(3, TimeUnit.SECONDS) || connectionFailed[0] || ws == null) {
+                throw new IOException("O ComfyUI não está em execução em 127.0.0.1:8188. Por favor, abra o Comfy Desktop na sua Área de Trabalho antes de gerar.");
             }
         } catch (InterruptedException e) {
-            if (comfyHandler != null) comfyHandler.onError(e);
+            Thread.currentThread().interrupt();
+            throw new IOException("Conexão interrompida com o ComfyUI.", e);
         }
     }
 
     private ObjectNode loadPromptJson(String path) throws IOException {
-        return (ObjectNode) mapper.readTree(Files.readString(Path.of(path), StandardCharsets.UTF_8));
+        Path filePath = Path.of(path);
+        if (Files.exists(filePath)) {
+            return (ObjectNode) mapper.readTree(Files.readString(filePath, StandardCharsets.UTF_8));
+        }
+
+        // Tenta encontrar na pasta raiz de execução
+        Path fallbackRoot = Path.of(System.getProperty("user.dir"), path);
+        if (Files.exists(fallbackRoot)) {
+            return (ObjectNode) mapper.readTree(Files.readString(fallbackRoot, StandardCharsets.UTF_8));
+        }
+
+        // Tenta carregar do classpath/resources
+        try (var is = getClass().getClassLoader().getResourceAsStream(path)) {
+            if (is != null) {
+                return (ObjectNode) mapper.readTree(is);
+            }
+        }
+        try (var is = getClass().getResourceAsStream("/" + path)) {
+            if (is != null) {
+                return (ObjectNode) mapper.readTree(is);
+            }
+        }
+
+        throw new IOException("Arquivo de workflow não encontrado: " + path + ". Nenhum modelo pesado alternativo será usado por segurança.");
     }
     private ObjectNode createPromptData(ObjectNode n, String positive, String negative, int seed) {
         ObjectNode prompt = n.deepCopy();
@@ -135,7 +159,7 @@ public class ComfyUIClient implements AutoCloseable {
             if ("KSampler".equals(classType) && inputs != null) {
                 if (inputs.has("seed")) {
                     inputs.put("seed", seed);
-                    System.out.println("🛠️ " + key + " の seed を " + seed + " に設定");
+                    System.out.println("🛠️ Nó " + key + " KSampler: seed definida para " + seed);
                 }
 
                 JsonNode posRef = inputs.get("positive");
@@ -146,7 +170,7 @@ public class ComfyUIClient implements AutoCloseable {
                         ObjectNode refObj = (ObjectNode) refNode;
                         ObjectNode refInputs = (ObjectNode) refObj.path("inputs");
                         refInputs.put("text", positive);
-                        System.out.println("📝 Positiveプロンプト: " + positive);
+                        System.out.println("📝 Prompt positivo: " + positive);
                     }
                 }
                 JsonNode negRef = inputs.get("negative");
@@ -157,7 +181,7 @@ public class ComfyUIClient implements AutoCloseable {
                         ObjectNode refObj = (ObjectNode) refNode;
                         ObjectNode refInputs = (ObjectNode) refObj.path("inputs");
                         refInputs.put("text", negative);
-                        System.out.println("📝 Negativeプロンプト: " + negative);
+                        System.out.println("📝 Prompt negativo: " + negative);
                     }
                 }
             }
@@ -178,14 +202,14 @@ public class ComfyUIClient implements AutoCloseable {
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            System.out.println("📥 サーバー応答: " + response.body());
+            System.out.println("📥 Resposta do ComfyUI: " + response.body());
 
             JsonNode body = mapper.readTree(response.body());
             String id = body.path("prompt_id").asText(null);
-            System.out.println("  ⇨ prompt_id: " + id);
+            System.out.println("  ⇨ ID da geração (prompt_id): " + id);
             return id;
         } catch (InterruptedException e) {
-            System.out.println("❌ workflow送信エラー: " + e.getMessage());
+            System.out.println("❌ Erro ao enviar workflow: " + e.getMessage());
             return null;
         }
     }
@@ -197,7 +221,7 @@ public class ComfyUIClient implements AutoCloseable {
                 URLEncoder.encode(type, StandardCharsets.UTF_8),
                 URLEncoder.encode(subfolder, StandardCharsets.UTF_8));
 
-        System.out.println("✅ 画像取得: " + url);
+        System.out.println("✅ Imagem obtida do ComfyUI: " + url);
 
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).build();
         try {

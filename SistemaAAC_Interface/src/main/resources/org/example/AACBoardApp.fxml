@@ -11,31 +11,50 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane prefHeight="650.0" prefWidth="900.0" xmlns="http://javafx.com/javafx/13" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.AACBoardAppController">
+<BorderPane prefHeight="650.0" prefWidth="900.0" 
+            style="-fx-background-color: linear-gradient(to bottom, #185587 0%, #68A2CD 42%, #B8E9FF 100%);" 
+            xmlns="http://javafx.com/javafx/13" xmlns:fx="http://javafx.com/fxml/1" 
+            fx:controller="org.example.AACBoardAppController">
    <top>
-      <VBox spacing="10.0" style="-fx-background-color: #2c3e50; -fx-padding: 15;">
+      <VBox alignment="CENTER" spacing="12.0" style="-fx-background-color: transparent; -fx-padding: 24 25 16 25;">
          <children>
-            <Label text="🧩 Gerador de Pranchas CAA (Comunicação Aumentativa e Alternativa)" 
-                   style="-fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold;" />
-            <HBox spacing="10.0" alignment="CENTER_LEFT">
+            <!-- Título limpo e moderno flutuando no topo -->
+            <Label text="Gerador de Pranchas CAA" 
+                   style="-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold; -fx-font-family: 'Segoe UI', system-ui, sans-serif; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 4, 0, 0, 1);" />
+
+            <!-- Barra de Pesquisa Flutuante (Estilo Google, sem caixas quadradas ao redor) -->
+            <HBox alignment="CENTER" maxWidth="680.0" prefHeight="48.0" 
+                  style="-fx-background-color: white; -fx-background-radius: 26px; -fx-border-radius: 26px; -fx-border-color: rgba(255,255,255,0.7); -fx-border-width: 1px; -fx-padding: 4 6 4 18; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 14, 0, 0, 5);">
                <children>
-                  <TextField fx:id="campoTema" promptText="Digite o tema ou pedido (ex: hora do almoço, brincar no parque)..." 
-                             HBox.hgrow="ALWAYS" prefHeight="38.0" style="-fx-font-size: 14px;" />
+                  <TextField fx:id="campoTema" onAction="#aoClicarGerar" 
+                             promptText="Digite um tema (ex: praia, hora do almoço, brincar)..." 
+                             HBox.hgrow="ALWAYS" prefHeight="40.0" 
+                             style="-fx-background-color: transparent; -fx-border-color: transparent; -fx-font-size: 14px; -fx-text-fill: #0B254B; -fx-prompt-text-fill: #859bab; -fx-padding: 0 10 0 2;" />
+                  
+                  <ProgressIndicator fx:id="indicadorProgresso" visible="false" prefHeight="24.0" prefWidth="24.0">
+                     <HBox.margin>
+                        <Insets right="8.0" />
+                     </HBox.margin>
+                  </ProgressIndicator>
+
                   <Button fx:id="botaoGerar" text="Gerar Prancha" onAction="#aoClicarGerar" 
-                          prefHeight="38.0" prefWidth="140.0" 
-                          style="-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; -fx-cursor: hand;" />
-                  <ProgressIndicator fx:id="indicadorProgresso" visible="false" prefHeight="30.0" prefWidth="30.0" />
+                          prefHeight="38.0" prefWidth="130.0" 
+                          style="-fx-background-color: #0B254B; -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 13px; -fx-cursor: hand; -fx-background-radius: 20px; -fx-effect: dropshadow(gaussian, rgba(11,37,75,0.3), 5, 0, 0, 2);" />
                </children>
             </HBox>
-            <Label fx:id="rotuloStatus" text="Digite um tema acima e clique em 'Gerar Prancha'." 
-                   style="-fx-text-fill: #ecf0f1; -fx-font-size: 12px;" />
+
+            <!-- Status do processo -->
+            <Label fx:id="rotuloStatus" text="Digite um tema acima e clique em 'Gerar Prancha' ou aperte Enter." 
+                   style="-fx-text-fill: #E3F2FD; -fx-font-size: 12px; -fx-font-weight: 500; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 3, 0, 0, 1);" />
          </children>
       </VBox>
    </top>
    <center>
-      <ScrollPane fitToWidth="true" style="-fx-background-color: #ecf0f1;">
+      <ScrollPane fitToWidth="true" fitToHeight="true" 
+                  style="-fx-background: transparent; -fx-background-color: transparent;">
          <content>
-            <FlowPane fx:id="containerCards" hgap="15.0" vgap="15.0" style="-fx-padding: 20; -fx-alignment: center;">
+            <FlowPane fx:id="containerCards" hgap="18.0" vgap="18.0" 
+                      style="-fx-background-color: transparent; -fx-padding: 15 25 25 25; -fx-alignment: center;">
                <!-- Os cards de pictogramas gerados serão inseridos aqui dinamicamente -->
             </FlowPane>
          </content>

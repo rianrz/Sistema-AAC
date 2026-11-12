@@ -68,7 +68,7 @@ public class AACBoardAppController {
                 try {
                     pictogramService = new PictogramService();
                 } catch (IOException e) {
-                    Platform.runLater(() -> rotuloStatus.setText("❌ Não foi possível conectar ao ComfyUI. Certifique-se que está rodando em localhost:8188."));
+                    Platform.runLater(() -> rotuloStatus.setText("❌ " + e.getMessage()));
                     return null;
                 }
 
@@ -126,11 +126,11 @@ public class AACBoardAppController {
         card.setStyle(
                 "-fx-background-color: white;" +
                 "-fx-background-radius: 12px;" +
-                "-fx-border-color: #bdc3c7;" +
+                "-fx-border-color: #bcd9ea;" +
                 "-fx-border-radius: 12px;" +
                 "-fx-border-width: 2px;" +
                 "-fx-padding: 10;" +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 6, 0, 0, 2);"
+                "-fx-effect: dropshadow(gaussian, rgba(24,85,135,0.12), 8, 0, 0, 3);"
         );
 
         ImageView imageView = new ImageView();
@@ -143,31 +143,31 @@ public class AACBoardAppController {
         }
 
         Label label = new Label(palavra.toUpperCase());
-        label.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #2c3e50;");
+        label.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: #0B254B;");
         label.setWrapText(true);
 
         card.getChildren().addAll(imageView, label);
 
         // Feedback visual ao passar o mouse
         card.setOnMouseEntered(e -> card.setStyle(
-                "-fx-background-color: #f8f9fa;" +
+                "-fx-background-color: #f7fcff;" +
                 "-fx-background-radius: 12px;" +
-                "-fx-border-color: #3498db;" +
+                "-fx-border-color: #185587;" +
                 "-fx-border-radius: 12px;" +
                 "-fx-border-width: 2px;" +
                 "-fx-padding: 10;" +
                 "-fx-cursor: hand;" +
-                "-fx-effect: dropshadow(gaussian, rgba(52,152,219,0.3), 8, 0, 0, 3);"
+                "-fx-effect: dropshadow(gaussian, rgba(24,85,135,0.3), 10, 0, 0, 4);"
         ));
 
         card.setOnMouseExited(e -> card.setStyle(
                 "-fx-background-color: white;" +
                 "-fx-background-radius: 12px;" +
-                "-fx-border-color: #bdc3c7;" +
+                "-fx-border-color: #bcd9ea;" +
                 "-fx-border-radius: 12px;" +
                 "-fx-border-width: 2px;" +
                 "-fx-padding: 10;" +
-                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 6, 0, 0, 2);"
+                "-fx-effect: dropshadow(gaussian, rgba(24,85,135,0.12), 8, 0, 0, 3);"
         ));
 
         return card;
