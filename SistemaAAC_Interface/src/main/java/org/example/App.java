@@ -17,7 +17,8 @@ public class App extends Application {
 
     @Override
     public void start(Stage stage) throws IOException {
-        scene = new Scene(loadFXML("primary"), 640, 480);
+        scene = new Scene(loadFXML("AACBoardApp"), 960, 680);
+        stage.setTitle("Gerador de Pranchas CAA - Comunicação Aumentativa e Alternativa");
         stage.setScene(scene);
         stage.show();
     }
@@ -34,5 +35,4 @@ public class App extends Application {
     public static void main(String[] args) {
         launch();
     }
-
 }

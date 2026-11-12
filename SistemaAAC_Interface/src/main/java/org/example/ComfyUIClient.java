@@ -24,9 +24,9 @@ import java.util.concurrent.TimeUnit;
 
 public class ComfyUIClient implements AutoCloseable {
 
-    private static final String SERVER_ADDRESS = "localhost:8188";
+    private static final String SERVER_ADDRESS = "127.0.0.1:8188";
     private static final String CLIENT_ID = "my_client_id";
-    private static final String WORKFLOW = "qwen_image_gguf.json";
+    private static final String DEFAULT_WORKFLOW = "toonyou_sd15_fast.json";
 
     private final ObjectNode promptData;
     private WebSocket ws;
@@ -51,27 +51,33 @@ public class ComfyUIClient implements AutoCloseable {
         void onError(IOException ex);
     }
 
-    public ComfyUIClient() throws IOException{
-        this(null);
+    public ComfyUIClient() throws IOException {
+        this(DEFAULT_WORKFLOW, null);
     }
-    
-    public ComfyUIClient(ComfyHandler handler) throws IOException{
+
+    public ComfyUIClient(String workflowPath) throws IOException {
+        this(workflowPath, null);
+    }
+
+    public ComfyUIClient(ComfyHandler handler) throws IOException {
+        this(DEFAULT_WORKFLOW, handler);
+    }
+
+    public ComfyUIClient(String workflowPath, ComfyHandler handler) throws IOException {
         this.comfyHandler = handler;
         client = HttpClient.newHttpClient();
-        // プロンプトJSON読み込み
-        promptData = loadPromptJson(WORKFLOW);
-
-        // WebSocket接続開始
+        String targetWorkflow = workflowPath != null ? workflowPath : DEFAULT_WORKFLOW;
+        promptData = loadPromptJson(targetWorkflow);
+        System.out.println("🎨 Workflow ativo: " + targetWorkflow + " (Modelo Anime SD 1.5 - ToonYou)");
         startWebSocket();
-
     }
-    public void startGenerate(String positivePrompt, String negativePrompt, GenerationHandler handler) throws UncheckedIOException{
+    public void startGenerate(String positivePrompt, String negativePrompt, GenerationHandler handler) throws UncheckedIOException {
         startGenerate(positivePrompt, negativePrompt, rand.nextInt(9_999_999), handler);
     }
-    public void startGenerate(String positivePrompt, String negativePrompt, int seed, GenerationHandler handler) throws UncheckedIOException{
+    public void startGenerate(String positivePrompt, String negativePrompt, int seed, GenerationHandler handler) throws UncheckedIOException {
         try {
-            var data = createPromptData(promptData, positivePrompt, negativePrompt, seed);
-            var id = comfyUIPrompt(data);
+            ObjectNode data = createPromptData(promptData, positivePrompt, negativePrompt, seed);
+            String id = comfyUIPrompt(data);
             synchronized (handlers) {
                 handlers.put(id, handler);
             }
@@ -79,15 +85,13 @@ public class ComfyUIClient implements AutoCloseable {
             throw new UncheckedIOException(ex);
         }
     }
-    
     @Override
     public void close() {
         if (ws != null) ws.sendClose(WebSocket.NORMAL_CLOSURE, "bye");
     }
-    
-    /** WebSocket接続 */
-    private void startWebSocket() {
+    private void startWebSocket() throws IOException {
         CountDownLatch wsConnected = new CountDownLatch(1);
+        final boolean[] connectionFailed = {false};
 
         client.newWebSocketBuilder()
                 .buildAsync(URI.create("ws://" + SERVER_ADDRESS + "/ws?clientId=" + CLIENT_ID),
@@ -97,33 +101,57 @@ public class ComfyUIClient implements AutoCloseable {
                     wsConnected.countDown();
                 })
                 .exceptionally(ex -> {
-                    System.err.println("❌ Falha ao conectar no WebSocket do ComfyUI: " + ex.getMessage());
+                    System.err.println("❌ Falha ao conectar no ComfyUI: " + ex.getMessage());
+                    connectionFailed[0] = true;
                     wsConnected.countDown();
                     return null;
                 });
 
         try {
-            if (!wsConnected.await(5, TimeUnit.SECONDS)) {
-                System.err.println("⚠️ Conexão com ComfyUI expirou (timeout). O servidor está rodando em localhost:8188?");
+            if (!wsConnected.await(3, TimeUnit.SECONDS) || connectionFailed[0] || ws == null) {
+                throw new IOException("O ComfyUI não está em execução em 127.0.0.1:8188. Por favor, abra o Comfy Desktop na sua Área de Trabalho antes de gerar.");
             }
         } catch (InterruptedException e) {
-            if (comfyHandler != null) comfyHandler.onError(e);
+            Thread.currentThread().interrupt();
+            throw new IOException("Conexão interrompida com o ComfyUI.", e);
         }
     }
 
-    /** prompt.json 読み込み */
     private ObjectNode loadPromptJson(String path) throws IOException {
-        return (ObjectNode) mapper.readTree(Files.readString(Path.of(path), StandardCharsets.UTF_8));
+        Path filePath = Path.of(path);
+        if (Files.exists(filePath)) {
+            return (ObjectNode) mapper.readTree(Files.readString(filePath, StandardCharsets.UTF_8));
+        }
+
+        // Tenta encontrar na pasta raiz de execução
+        Path fallbackRoot = Path.of(System.getProperty("user.dir"), path);
+        if (Files.exists(fallbackRoot)) {
+            return (ObjectNode) mapper.readTree(Files.readString(fallbackRoot, StandardCharsets.UTF_8));
+        }
+
+        // Tenta carregar do classpath/resources
+        try (var is = getClass().getClassLoader().getResourceAsStream(path)) {
+            if (is != null) {
+                return (ObjectNode) mapper.readTree(is);
+            }
+        }
+        try (var is = getClass().getResourceAsStream("/" + path)) {
+            if (is != null) {
+                return (ObjectNode) mapper.readTree(is);
+            }
+        }
+
+        throw new IOException("Arquivo de workflow não encontrado: " + path + ". Nenhum modelo pesado alternativo será usado por segurança.");
     }
-    
-    /** プロンプト更新 */
     private ObjectNode createPromptData(ObjectNode n, String positive, String negative, int seed) {
         ObjectNode prompt = n.deepCopy();
         Iterator<String> fields = prompt.fieldNames();
         while (fields.hasNext()) {
             String key = fields.next();
             JsonNode node = prompt.get(key);
-            if (!(node instanceof ObjectNode obj)) continue;
+            // CORREÇÃO: Compatibilidade com Java 11 (removido pattern matching do instanceof)
+            if (!(node instanceof ObjectNode)) continue;
+            ObjectNode obj = (ObjectNode) node;
 
             String classType = obj.path("class_type").asText();
             ObjectNode inputs = (ObjectNode) obj.path("inputs");
@@ -131,38 +159,37 @@ public class ComfyUIClient implements AutoCloseable {
             if ("KSampler".equals(classType) && inputs != null) {
                 if (inputs.has("seed")) {
                     inputs.put("seed", seed);
-                    System.out.println("🛠️ " + key + " の seed を " + seed + " に設定");
+                    System.out.println("🛠️ Nó " + key + " KSampler: seed definida para " + seed);
                 }
 
                 JsonNode posRef = inputs.get("positive");
                 if (posRef != null && posRef.isArray() && posRef.size() > 0) {
                     String refId = posRef.get(0).asText();
                     JsonNode refNode = prompt.get(refId);
-                    if (refNode instanceof ObjectNode refObj) {
+                    if (refNode instanceof ObjectNode) {
+                        ObjectNode refObj = (ObjectNode) refNode;
                         ObjectNode refInputs = (ObjectNode) refObj.path("inputs");
                         refInputs.put("text", positive);
-                        System.out.println("📝 Positiveプロンプト: " + positive);
+                        System.out.println("📝 Prompt positivo: " + positive);
                     }
                 }
                 JsonNode negRef = inputs.get("negative");
                 if (negRef != null && negRef.isArray() && negRef.size() > 0) {
                     String refId = negRef.get(0).asText();
                     JsonNode refNode = prompt.get(refId);
-                    if (refNode instanceof ObjectNode refObj) {
+                    if (refNode instanceof ObjectNode) {
+                        ObjectNode refObj = (ObjectNode) refNode;
                         ObjectNode refInputs = (ObjectNode) refObj.path("inputs");
                         refInputs.put("text", negative);
-                        System.out.println("📝 Negativeプロンプト: " + negative);
+                        System.out.println("📝 Prompt negativo: " + negative);
                     }
                 }
-                
             }
         }
         return prompt;
     }
 
-
-    /** ComfyUI: プロンプト送信 */
-    private String comfyUIPrompt(ObjectNode prompt) throws IOException{
+    private String comfyUIPrompt(ObjectNode prompt) throws IOException {
         try {
             ObjectNode payload = mapper.createObjectNode();
             payload.put("client_id", CLIENT_ID);
@@ -175,19 +202,18 @@ public class ComfyUIClient implements AutoCloseable {
                     .build();
 
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            System.out.println("📥 サーバー応答: " + response.body());
+            System.out.println("📥 Resposta do ComfyUI: " + response.body());
 
             JsonNode body = mapper.readTree(response.body());
             String id = body.path("prompt_id").asText(null);
-            System.out.println("  ⇨ prompt_id: " + id);
+            System.out.println("  ⇨ ID da geração (prompt_id): " + id);
             return id;
-        } catch ( InterruptedException e) {
-            System.out.println("❌ workflow送信エラー: " + e.getMessage());
+        } catch (InterruptedException e) {
+            System.out.println("❌ Erro ao enviar workflow: " + e.getMessage());
             return null;
         }
     }
 
-    /** ComfyUI: 画像取得 */
     private byte[] comfyUIView(String filename, String type, String subfolder) throws IOException {
         String url = String.format("http://%s/view?filename=%s&type=%s&subfolder=%s",
                 SERVER_ADDRESS,
@@ -195,7 +221,7 @@ public class ComfyUIClient implements AutoCloseable {
                 URLEncoder.encode(type, StandardCharsets.UTF_8),
                 URLEncoder.encode(subfolder, StandardCharsets.UTF_8));
 
-        System.out.println("✅ 画像取得: " + url);
+        System.out.println("✅ Imagem obtida do ComfyUI: " + url);
 
         HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).build();
         try {
@@ -205,11 +231,8 @@ public class ComfyUIClient implements AutoCloseable {
             throw new RuntimeException(ex);
         }
     }
-    
-    /** WebSocket リスナー */
     private class WSListener implements WebSocket.Listener {
         private final StringBuilder buffer = new StringBuilder();
-        
         @Override
         public void onOpen(WebSocket webSocket) {
             if (comfyHandler != null) comfyHandler.onOpen();
@@ -231,72 +254,74 @@ public class ComfyUIClient implements AutoCloseable {
                 JsonNode msg = mapper.readTree(msgStr);
                 String type = msg.path("type").asText();
 
+                // CORREÇÃO: Switch clássico para suportar Java 11
                 switch (type) {
-                    case "status" -> {
+                    case "status":
                         String sid = msg.path("data").path("sid").asText(null);
                         if (sid != null && comfyHandler != null){
                             comfyHandler.onSid(sid);
                         }
-                        var remaining = msg.findPath("queue_remaining").asInt(-1);
+                        int remaining = msg.findPath("queue_remaining").asInt(-1);
                         if (remaining >= 0 && comfyHandler != null) {
                             comfyHandler.onQueueStatus(remaining);
                         }
-                    }
+                        break;
 
-                    case "progress" -> {
+                    case "progress":
                         JsonNode data = msg.path("data");
                         int value = data.path("value").asInt(0);
                         int max = data.path("max").asInt(1);
-                        var id = data.path("prompt_id").asText();
+                        String id = data.path("prompt_id").asText();
 
                         GenerationHandler h;
                         synchronized (handlers) {
                             h = handlers.get(id);
                         }
                         if (h != null) h.onProgress(value, max);
-                    }
+                        break;
 
-                    case "executed" -> {
+                    case "executed":
                         System.out.println("📥 executed: " + msg);
-                        JsonNode data = msg.path("data");
-                        var id = data.path("prompt_id").asText();
-                        JsonNode images = data.path("output").path("images");
+                        JsonNode execData = msg.path("data");
+                        String execId = execData.path("prompt_id").asText();
+                        JsonNode images = execData.path("output").path("images");
                         if (images.isArray() && images.size() > 0) {
                             ObjectNode img = (ObjectNode) images.get(0);
 
-                            var filename = img.path("filename").asText();
-                            var filetype = img.path("type").asText();
-                            var subfolder = img.path("subfolder").asText();
-                            GenerationHandler h;
+                            String filename = img.path("filename").asText();
+                            String filetype = img.path("type").asText();
+                            String subfolder = img.path("subfolder").asText();
+                            GenerationHandler hExec;
                             synchronized (handlers) {
-                                h = handlers.get(id);
+                                hExec = handlers.get(execId);
                             }
-                            if (h != null) {
+                            if (hExec != null) {
                                 try {
                                     byte[] imageData = comfyUIView(filename, filetype, subfolder);
-                                    h.onFinish(imageData);
+                                    hExec.onFinish(imageData);
                                 } catch (IOException ex) {
-                                    h.onError(ex);
+                                    hExec.onError(ex);
                                 }
                             }
                         }
-                    }
+                        break;
 
-                    case "execution_start" -> {
-                        var id = msg.findPath("prompt_id").asText();
-                        GenerationHandler h;
+                    case "execution_start":
+                        String startId = msg.findPath("prompt_id").asText();
+                        GenerationHandler hStart;
                         synchronized (handlers) {
-                            h = handlers.get(id);
+                            hStart = handlers.get(startId);
                         }
-                        if (h != null) h.onStart();
-                    }
-                    case "execution_success" -> {
-                        var id = msg.findPath("prompt_id").asText();
+                        if (hStart != null) hStart.onStart();
+                        break;
+                    case "execution_success":
+                        String successId = msg.findPath("prompt_id").asText();
                         synchronized (handlers) {
-                            handlers.remove(id);
+                            handlers.remove(successId);
                         }
-                    }
-                    default -> {} // 無視
+                        break;
+                    default:
+                        break;
                 }
             } catch (Exception e) {
                 if (comfyHandler != null) comfyHandler.onError(e);
@@ -311,7 +336,6 @@ public class ComfyUIClient implements AutoCloseable {
         @Override
         public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
             if (comfyHandler != null) comfyHandler.onClose(statusCode, reason);
-
             return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
         }
     }
